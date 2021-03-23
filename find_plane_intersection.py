@@ -8,10 +8,15 @@ class Point():
 		self.y = y
 		self.z = z
 
+	# Member function to return the inverse of point
+	def invert_point(self):
+		return Point(-self.x, -self.y, -self.z)
 
 vertex_dict = {}
 face_dict = {}
 sphere_points = {}
+intersections = []
+intersection_normals = []
 
 def normalize(vector):
 	return vector / np.linalg.norm(vector)
@@ -60,6 +65,19 @@ def equation_line_3D(initial_pt, final_pt):
 
 	return position_0, slope
 
+# ==================================================================================================
+#	finds direction of ray and returns the unit vector for said direction
+# 	PARAMS: initial_pt, final_pt : type POINT
+# ==================================================================================================
+def find_ray_direction(initial_pt, final_pt):
+	slope_x = final_pt.x - initial_pt.x
+	slope_y = final_pt.y - initial_pt.y
+	slope_z = final_pt.z - initial_pt.z
+
+	slope = [float(slope_x), float(slope_y), float(slope_z)]
+	return slope/np.linalg.norm(slope)
+
+
 # ===================================
 # check if a point lies on a plane
 # ===================================
@@ -75,7 +93,7 @@ def plane_intersect(face, plane_coeff, point):
 	# Calculate plane equation using x y z of point
 	if point_in_plane:
 		equation = plane_coeff['a']*point[0] + plane_coeff['b']*point[1] + plane_coeff['c']*point[2] + plane_coeff['d']
-		intersects = True if equation == 0.0 else False
+		intersects = True if math.isclose(equation, 0, abs_tol=0.00015) else False
 		return intersects
 	else:
 		# Point is not in planes range
@@ -137,20 +155,20 @@ def min_max_of_vertices(vertices):
 # ==========================================================
 # Method to check if a point is in a x, y, z range
 # ==========================================================
-def point_in_range(point, min_x, max_x, min_y, max_y, min_z, max_z):
-	# Check if point is outside of the planes bounds
-	if not min_x <= point[0] <= max_x:
+def point_in_range(point, min_x, max_x, min_y, max_y, min_z, max_z, tolerance=0.00001):
+
+	# Check if point is outside of the planes bounds, or in case of min = max, check if point is within a tolerance of 0.00001
+	if not min_x <= point[0] <= max_x and not(math.isclose(point[0], min_x, rel_tol=tolerance) and math.isclose(point[0], max_x, rel_tol=tolerance)):
 		#print("X coordinate is not in face plane range")
 		return False
-	if not min_y <= point[1] <= max_y:
+	if not min_y <= point[1] <= max_y and not(math.isclose(point[1], min_y, rel_tol=tolerance) and math.isclose(point[1], max_y, rel_tol=tolerance)):
 		#print("Y coordinate is not in face plane range")
 		return False
-	if not min_z <= point[2] <= max_z:
+	if not min_z <= point[2] <= max_z and not(math.isclose(point[2], min_z, rel_tol=tolerance) and math.isclose(point[2], max_z, rel_tol=tolerance)):
 		#print("Z coordinate is not in face plane range")
 		return False
 
 	return True
-
 
 
 # =========================================
@@ -179,47 +197,184 @@ def round_decimals_down(number:float, decimals:int=5):
 	return math.floor(number * factor) / factor
 
 
-if __name__ == "__main__":
-	vertex_dict[1] = [0.0, 0.0, 0.0]
-	vertex_dict[2] = [0.0, 1.0, 0.0]
-	vertex_dict[3] = [0.0, 1.0, 1.0]
-	vertex_dict[4] = [0.0, 0.0, 1.0]
+# ====================================================================
+# Function to check which faces fall relatively inside the rays path
+# PARAMS: faces - dictionary, ray_initial - initial Point of ray, ray_final - final Point of ray
+# ====================================================================
+def parse_faces(faces, ray_initial, ray_final):
+	valid_faces = []
+	min_x = min(ray_initial.x, ray_final.x)
+	max_x = max(ray_initial.x, ray_final.x)
+	min_y = min(ray_initial.y, ray_final.y)
+	max_y = max(ray_initial.y, ray_final.y)
+	min_z = min(ray_initial.z, ray_final.z)
+	max_z = max(ray_initial.z, ray_final.z)
 
-	face_dict[1] = [1, 2, 3, 4]
+	for index, face in faces.items():
+		face_min_x, face_max_x, face_min_y, face_max_y, face_min_z, face_max_z = min_max_of_face(face,
+																								 vertices=vertex_dict)
 
+		# min_x, min_y, min_z
+		if face_min_x in range(min_x, max_x) and face_min_y in range(min_y, max_y) and face_min_z in range(min_z,
+																										   max_z):
+			valid_faces.append(face)
+
+		# min_x, min_y, max_z
+		elif face_min_x in range(min_x, max_x) and face_min_y in range(min_y, max_y) and face_max_z in range(min_z,
+																											 max_z):
+			valid_faces.append(face)
+
+		# min_x, max_y, min_z
+		elif face_min_x in range(min_x, max_x) and face_max_y in range(min_y, max_y) and face_min_z in range(min_z,
+																											 max_z):
+			valid_faces.append(face)
+
+		# min_x, max_y, max_z
+		elif face_min_x in range(min_x, max_x) and face_max_y in range(min_y, max_y) and face_max_z in range(min_z,
+																											 max_z):
+			valid_faces.append(face)
+
+		# max_x, min_y, min_z
+		elif face_max_x in range(min_x, max_x) and face_min_y in range(min_y, max_y) and face_min_z in range(min_z,
+																											 max_z):
+			valid_faces.append(face)
+
+		# max_x, min_y, max_z
+		elif face_max_x in range(min_x, max_x) and face_min_y in range(min_y, max_y) and face_max_z in range(min_z,
+																											 max_z):
+			valid_faces.append(face)
+
+		# max_x, max_y, min_z
+		elif face_max_x in range(min_x, max_x) and face_max_y in range(min_y, max_y) and face_min_z in range(min_z,
+																											 max_z):
+			valid_faces.append(face)
+
+		# max_x, max_y, max_z
+		elif face_max_x in range(min_x, max_x) and face_max_y in range(min_y, max_y) and face_max_z in range(min_z,
+																											 max_z):
+			valid_faces.append(face)
+
+	return valid_faces
+
+# =================================================
+# Casts a ray from initial point to final point
+# checks if ray intersects a face plane
+# =================================================
+def cast_ray(face_dict, initial_point, final_point):
 	# Ray casting path
-	ray_initial = Point(1.0, 0.5, 0.5)
-	ray_final = Point(-1.0, 0.5, 0.5)
+	ray_initial = initial_point
+	ray_final = final_point
 
 	# 3D line parameters
 	line_initial, line_slope = equation_line_3D(ray_initial, ray_final)
 
-	# Plane coefficients (Make a better function for this later)
-	plane_coeff = equation_plane(face_dict[1])
-
-	# steps for ray being cast
-	steps = np.linspace(0, 1, 100000)
+	# steps for ray being cast,
+	steps = np.linspace(0, 1, num=1000000)
 
 	vert_min_x, vert_max_x, vert_min_y, vert_max_y, vert_min_z, vert_max_z = min_max_of_vertices(vertex_dict)
-
-
+	# print(steps)
 	for step in steps:
 
-		step = round_decimals_down(step)
-		if step == 0.5:
-			print("Step == 0.5")
-		point = point_on_3D_line(line_initial, line_slope, step)	# Calculate point on 3D line
-
+		#step = round_decimals_down(step)
+		#if step >= 0.161266 and step <= 0.161267:
+		#	print("Step == ", step)
+		point = point_on_3D_line(line_initial, line_slope, step)  # Calculate point on 3D line
+		#print(point)
 		# check if point is within min, max values of vertex values
-		point_valid = point_in_range(point, min_x=vert_min_x,max_x=vert_max_x, min_y=vert_min_y, max_y=vert_max_y, min_z=vert_min_z, max_z=vert_max_z)
+		point_valid = point_in_range(point, min_x=vert_min_x, max_x=vert_max_x, min_y=vert_min_y, max_y=vert_max_y,
+									 min_z=vert_min_z, max_z=vert_max_z, tolerance=0.00001)
 
 		# go through all faces in dictionary if point is valid
 		if point_valid:
 			for face_number in face_dict:
 				# Check if point intersects faces plane
-				print("Point is valid!!")
+				#print("Point is valid!!")
 				plane_coeff = equation_plane(face_dict[face_number])
 				intersects = plane_intersect(face=face_dict[face_number], plane_coeff=plane_coeff, point=point)
 				if intersects:
-					print("The point intersects!")
-					print(point)
+					#print("The point intersects!")
+					#print(point)
+					intersections.append(point)
+					intersection_normals.append(normalize(line_slope))
+
+
+# =================================================
+# Finds unit vector normal of a given face plane
+# PARAM: Face is an entry from the face dictionary, it is an array of vertex indices
+# =================================================
+def find_face_normal(face):
+	normal = [0, 0, 0]	# initialize vectors
+
+	for i in range(1, len(face)):
+		vect_a = np.array(vertex_dict[i])
+		for j in range(i + 1, len(face)):
+			vect_b = np.array(vertex_dict[j])
+			normal = np.cross(vect_a, vect_b)
+
+			if not np.all((normal == 0)):	# inner loop: check if normal in non-zero
+				break
+		if not np.all((normal == 0)):		# outer loop: check if normal in non-zero
+			break
+
+	#print("vect_a is ", vect_a)
+	#print("vect_b is ", vect_b)
+	#print("Normal vector is ", normal)
+	normal = normalize(normal)  # Normalize vector so it is a unit vector
+
+	return normal
+
+# ===========================================
+# Take the slope vector of a ray and calculates its unit vector
+# ============================================
+def find_ray_unit_vector(ray_slope):
+	return normalize(ray_slope)
+
+# =================================================
+# Creates a test sphere with 14 coordinate points
+# =================================================
+def create_circle_dict():
+	sphere_dict = {}
+	sphere_dict[1] = [3.0, 0.0, 0.0]
+	sphere_dict[2] = [-3.0, 0.0, 0.0]
+
+	sphere_dict[3] = [0.0, 3.0, 0.0]
+	sphere_dict[4] = [0.0, -3.0, 0.0]
+
+	sphere_dict[5] = [0.0, 0.0, 3.0]
+	sphere_dict[6] = [0.0, 0.0, -.0]
+
+	sphere_dict[7] = [3.0, 3.0, 3.0]
+	sphere_dict[8] = [3.0, 3.0, -3.0]
+
+	sphere_dict[9] = [3.0, -3.0, 3.0]
+	sphere_dict[10] = [3.0, -3.0, 3.0]
+
+	sphere_dict[11] = [-3.0, 3.0, 3.0]
+	sphere_dict[12] = [-3.0, 3.0, -3.0]
+
+	sphere_dict[13] = [-3.0, -3.0, 3.0]
+	sphere_dict[14] = [-3.0, -3.0, 3.0]
+
+	return sphere_dict
+
+
+
+if __name__ == "__main__":
+	vertex_dict[1] = [2.0324, -3.0, -3.0]
+	vertex_dict[2] = [2.0324, 3.0, -3.0]
+	vertex_dict[3] = [2.0324, 3.0, 3.0]
+	vertex_dict[4] = [2.0324, -3.0, 3.0]
+
+	sphere_dict = create_circle_dict()
+	face_dict[1] = [1, 2, 3, 4]
+	ray = Point(1.0, 0, 0.0)
+	# for each vertex in sphere vertices
+	# set initial point = vertex, and final_point = -vertex
+	#cast_ray(face_dict=face_dict, initial_point=ray, final_point=ray.invert_point())
+	for index,ray in sphere_dict.items():
+
+		ray = Point(ray[0], ray[1], ray[2])	# create point with xyz coordinates of vertex
+
+		cast_ray(face_dict=face_dict, initial_point=ray, final_point=ray.invert_point())
+
+	print(intersection_normals)
