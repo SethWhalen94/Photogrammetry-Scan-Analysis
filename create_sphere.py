@@ -58,7 +58,7 @@ def printStandardSphere(pt, radius, nLatitude, nLongitude, fout, final_point):
 	vertex_list.append([pt.x, pt.y - radius, pt.z])
 
 	fVert = numVertices    # Record the first vertex index for intermediate vertices.
-	#for(p=1 p<nPitch p++)     # Generate all "intermediate vertices":
+	# Generate all "intermediate vertices":
 	for p in range(1, nPitch):
 		out = radius * math.sin(float(p) * pitchInc)
 		if out < 0:
@@ -85,9 +85,7 @@ def printStandardSphere(pt, radius, nLatitude, nLongitude, fout, final_point):
 
 	### PRINT SQUARE FACES BETWEEN INTERMEDIATE POINTS:
 
-	# for(p=1 p<nPitch-1 p++) {
 	for p in range(1, nPitch):
-		#for(s=0 s<nLatitude s++) {
 		for s in range(0, nLatitude):
 			i = p*nLatitude + s
 			j = i-nLatitude if s == (nLatitude-1) else i
@@ -98,9 +96,8 @@ def printStandardSphere(pt, radius, nLatitude, nLongitude, fout, final_point):
 	### PRINT TRIANGLE FACES CONNECTING TO TOP AND BOTTOM VERTEX:
 
 	offLastVerts  = fVert + (nLatitude * (nLongitude-1))
-	#for(s=0 s<nLatitude s++)
+
 	for s in range(0, nLatitude):
-		#j = (s==nLatitude-1) ? -1 : s
 		j = -1 if s == (nLatitude-1) else s
 
 		# Write faces to OBJ file !!!!!!
@@ -108,7 +105,6 @@ def printStandardSphere(pt, radius, nLatitude, nLongitude, fout, final_point):
 		fout.write("f %d %d %d\n" %(fVert, (s+1)+offLastVerts, (j+2)+offLastVerts) )
 
 	return vertex_list, ray_directions_list,  numVertices
-	#return vertex_dict, ray_directions_dict, numVertices
 
 
 # =============================================================================================

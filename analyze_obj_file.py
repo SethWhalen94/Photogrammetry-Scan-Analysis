@@ -137,7 +137,7 @@ def get_max_coordinate(v_dict):
 
 	print("min is ", min)
 	print("max is ", max)
-	#print("v_dict[min] = ", v_dict[min_point])
+
 	min_point = Point(v_dict[min_point][0], v_dict[min_point][1], v_dict[min_point][2])
 	max_point = Point(v_dict[max_point][0], v_dict[max_point][1], v_dict[max_point][2])
 
@@ -162,11 +162,73 @@ def find_line_midpoint(initial_pt, final_pt):
 
 	return midpoint
 
+# =======================================================================================
+# Finds unit vector normal of a given face plane
+# PARAM: Face is an entry from the face dictionary, it is an array of vertex indices
+# =============================================================================================
+def find_face_normal(face, vertex_dict):
+	normal = [0, 0, 0]	# initialize vectors
+
+
+	p1 = np.array(vertex_dict[face[0]])		# Point 1 on face
+	p2 = np.array(vertex_dict[face[1]])		# Point 2 on face
+	p3 = np.array(vertex_dict[face[2]])		# Point 3 on face
+
+	v1_2 = p2 - p1							# vector from p1 to p2
+	v2_3 = p3 - p2							# vector from p2 to p3
+	v3_1 = p1 - p3							# vector from p3 to p1
+
+	norm1 = np.cross(v1_2, v2_3)			# calculate normals
+	norm2 = np.cross(v2_3, v3_1)
+	norm3 = np.cross(v3_1, v1_2)
+
+	# Normalize vectors
+	norm1 = normalize(norm1)
+	norm2 = normalize(norm2)
+	norm3 = normalize(norm3)
+
+	face_normal = (norm1 + norm2 + norm3)/3		# calculate overall face normal
+
+	return face_normal
+
+# ===================================================
+# method to find missing image locations
+# PARAMS: ray_origins, ray_directions, face_indices, face_dict, vertex_dict
+# RETURNS: List of [x, y, z] coordinates
+# ===================================================
+def find_missing_image_coordiantes(index_ray, ray_origins, ray_directions, face_indices, face_dict, vertex_dict):
+
+	coords_list = []
+	# Use index_ray to determine which ray is paired with the current face
+	for index,face in enumerate(face_indices):
+		face_normal = find_face_normal(face_dict[face], vertex_dict)
+
+		#dot_prod = np.dot(ray_directions[index], face_normal)
+		dot_prod = np.dot(ray_directions[index_ray[index]], face_normal)
+
+		if dot_prod >= 0:
+															# Normals are pointing in the same direction
+															# this means we are missing image data, since we are hitting the 'back' of the face
+			coords_list.append(ray_origins[index])			# Add ray_origin to coordinates list
+
+		elif dot_prod < 0:
+			# this means we are hitting the face head on, which is correct
+			pass
+		else:
+			raise Exception("There is a problem with the ray/face dot product calculation")
+
+
+	return coords_list
+
+
+# ===================================================
+# MAIN Method
+# ===================================================
 if __name__ == "__main__":
 
 	print("Starting Program...")
 
-	file_name = "Box/model1.obj"
+	file_name = "Dice/Dice.obj"
 
 	v_dict, f_dict, vn_dict, vt_dict = read_obj_file(filename=file_name)
 
@@ -180,7 +242,9 @@ if __name__ == "__main__":
 
 	midpoint = find_line_midpoint(max_point, min_point)		# Find midpoint of max and min points
 
-	ray_origins, ray_directions, num_vertices = create_sphere(file_name="new_sphere1.obj", vertical_lines=20, radius=max, ray_center=midpoint, center_point=midpoint)	# Create a sphere to enclose the 3D object
+	ray_origins, ray_directions, num_vertices = create_sphere(file_name="new_sphere1.obj", vertical_lines=20, radius=max,
+															  ray_center=midpoint, center_point=midpoint)	# Create a sphere to enclose the 3D object
+
 
 	# convert to NumPy arrays for trimesh library to use
 	ray_origins = np.asarray(ray_origins)
@@ -193,14 +257,11 @@ if __name__ == "__main__":
 
 	print("Starting ray casting process...")
 
-	locations, index_ray, index_tri = mesh.ray.intersects_location(
-		ray_origins=ray_origins,
+	locations, index_ray, index_tri = mesh.ray.intersects_location(			# locations = [x, y, z] of ray hit on mesh
+		ray_origins=ray_origins,											# index_ray = array or ray indices for hit locations
 		ray_directions=ray_directions, multiple_hits=False)
 
 	print("Finished ray casting process...")
-	#for i in range(2):
-	#	print("Location: ",locations[i])
-	#	print("face index: ", index_tri[i])
 
 	# stack rays into line segments for visualization as Path3D
 	ray_visualize = trimesh.load_path(np.hstack((
@@ -209,9 +270,13 @@ if __name__ == "__main__":
 
 	# =============================================================================
 	# Add functionality to find face normals and compare to ray normals
-	# Check if locations/index_tri arraya are zero before looking at face normals
+	# Check if locations/index_tri arrays are zero before looking at face normals
 	# ==============================================================================
+	print("Finding missing image coordinates...")
+	missing_image_coords = find_missing_image_coordiantes(index_ray=index_ray,ray_origins=ray_origins, ray_directions=ray_directions, face_indices=index_tri, face_dict=f_dict, vertex_dict=v_dict)
 
+	print("The length of missing image coordinates is ", len(missing_image_coords))
+	
 	# unmerge so viewer doesn't smooth
 	mesh.unmerge_vertices()
 	# make mesh transparent- ish

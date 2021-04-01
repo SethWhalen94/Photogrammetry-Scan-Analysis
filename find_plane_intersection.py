@@ -159,13 +159,10 @@ def point_in_range(point, min_x, max_x, min_y, max_y, min_z, max_z, tolerance=0.
 
 	# Check if point is outside of the planes bounds, or in case of min = max, check if point is within a tolerance of 0.00001
 	if not min_x <= point[0] <= max_x and not(math.isclose(point[0], min_x, rel_tol=tolerance) and math.isclose(point[0], max_x, rel_tol=tolerance)):
-		#print("X coordinate is not in face plane range")
 		return False
 	if not min_y <= point[1] <= max_y and not(math.isclose(point[1], min_y, rel_tol=tolerance) and math.isclose(point[1], max_y, rel_tol=tolerance)):
-		#print("Y coordinate is not in face plane range")
 		return False
 	if not min_z <= point[2] <= max_z and not(math.isclose(point[2], min_z, rel_tol=tolerance) and math.isclose(point[2], max_z, rel_tol=tolerance)):
-		#print("Z coordinate is not in face plane range")
 		return False
 
 	return True
@@ -275,11 +272,9 @@ def cast_ray(face_dict, initial_point, final_point):
 	# print(steps)
 	for step in steps:
 
-		#step = round_decimals_down(step)
-		#if step >= 0.161266 and step <= 0.161267:
-		#	print("Step == ", step)
+
 		point = point_on_3D_line(line_initial, line_slope, step)  # Calculate point on 3D line
-		#print(point)
+
 		# check if point is within min, max values of vertex values
 		point_valid = point_in_range(point, min_x=vert_min_x, max_x=vert_max_x, min_y=vert_min_y, max_y=vert_max_y,
 									 min_z=vert_min_z, max_z=vert_max_z, tolerance=0.00001)
@@ -288,12 +283,9 @@ def cast_ray(face_dict, initial_point, final_point):
 		if point_valid:
 			for face_number in face_dict:
 				# Check if point intersects faces plane
-				#print("Point is valid!!")
 				plane_coeff = equation_plane(face_dict[face_number])
 				intersects = plane_intersect(face=face_dict[face_number], plane_coeff=plane_coeff, point=point)
 				if intersects:
-					#print("The point intersects!")
-					#print(point)
 					intersections.append(point)
 					intersection_normals.append(normalize(line_slope))
 
@@ -370,7 +362,6 @@ if __name__ == "__main__":
 	ray = Point(1.0, 0, 0.0)
 	# for each vertex in sphere vertices
 	# set initial point = vertex, and final_point = -vertex
-	#cast_ray(face_dict=face_dict, initial_point=ray, final_point=ray.invert_point())
 	for index,ray in sphere_dict.items():
 
 		ray = Point(ray[0], ray[1], ray[2])	# create point with xyz coordinates of vertex
