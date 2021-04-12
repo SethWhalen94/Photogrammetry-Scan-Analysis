@@ -6,11 +6,7 @@ from create_sphere import create_sphere
 from find_plane_intersection import find_ray_unit_vector, equation_line_3D
 import trimesh
 import math
-# v_dict = {}
-# vn_dict = {}
-# vt_dict = {}
-# f_dict = {}
-# g_dict = {}
+import os
 
 # Function to normalize a vector
 def normalize(vector):
@@ -196,9 +192,12 @@ def find_face_normal(face, vertex_dict):
 # PARAMS: ray_origins, ray_directions, face_indices, face_dict, vertex_dict
 # RETURNS: List of [x, y, z] coordinates
 # ===================================================
-def find_missing_image_coordiantes(index_ray, ray_origins, ray_directions, face_indices, face_dict, vertex_dict):
+def find_missing_image_coordiantes(index_ray, ray_origins, ray_directions, face_indices, face_dict, vertex_dict, locations):
 
 	coords_list = []
+	ray_origins_list = []
+	ray_directions_list = []
+	locations_list = []
 	# Use index_ray to determine which ray is paired with the current face
 	for index,face in enumerate(face_indices):
 		face_normal = find_face_normal(face_dict[face], vertex_dict)
@@ -209,7 +208,10 @@ def find_missing_image_coordiantes(index_ray, ray_origins, ray_directions, face_
 		if dot_prod >= 0:
 															# Normals are pointing in the same direction
 															# this means we are missing image data, since we are hitting the 'back' of the face
-			coords_list.append(ray_origins[index])			# Add ray_origin to coordinates list
+			coords_list.append(ray_origins[index_ray[index]])			# Add ray_origin to coordinates list
+			ray_origins_list.append(ray_origins[index_ray[index]].tolist())
+			ray_directions_list.append(ray_directions[index_ray[index]].tolist())
+			locations_list.append(locations[index].tolist())
 
 		elif dot_prod < 0:
 			# this means we are hitting the face head on, which is correct
@@ -218,7 +220,168 @@ def find_missing_image_coordiantes(index_ray, ray_origins, ray_directions, face_
 			raise Exception("There is a problem with the ray/face dot product calculation")
 
 
-	return coords_list
+	ray_origins_list, ray_directions_list = compare_missing_image_coordinates(ray_origins_list, ray_directions_list)			# check if we have already seen these ray hits
+
+	# Convert lists to numpy arrays
+	locations_list = np.asarray(locations_list)
+
+	return coords_list, ray_origins_list, ray_directions_list, locations_list
+
+
+# ==========================================================================================
+# Function to check existing missing image coordinates with newly found ones so we do not
+# re-use already found coordinates
+# PARAMS: image_coordinate - coordinates found from current iteration
+# ==========================================================================================
+def compare_missing_image_coordinates(image_coordinates, camera_directions):
+
+	new_coordinates = []
+	new_directions = []
+	exists = False
+
+	with open("missing_image_coordinates.txt", 'a+') as coords:
+
+
+
+
+		coords.seek(0)							# move to beginning of file to read currrent contents
+		lines = coords.readlines()
+		coords.seek(os.SEEK_END)
+
+		for coord, direction in zip(image_coordinates, camera_directions):
+
+			for line in lines:
+
+				curr_coord = line.split('+')[0]
+
+				if str(coord) == curr_coord:
+					exists = True
+					break
+
+			if not exists:
+				coords.write(str(coord) + '+' + str(direction))  		# Add camera location and direction to the coordinates file
+				coords.write('\n')
+				new_coordinates.append(coord)  		# add it to new coordinate list
+				new_directions.append(direction)	# Add it to new direction list
+				exists = False
+
+
+	return np.asarray(new_coordinates), np.asarray(new_directions)			# return numpy array of new coordinates
+
+
+# ======================================
+# Function to clear missing image coordinates file if this is a new scan
+# ==========================================================================
+def check_new_scan():
+	# Check if user wants to clear current file which holds coordinates
+	choice = ''
+	while choice.lower() != 'n' and choice.lower() != 'e':
+		choice = input(
+			"Is this for a new or existing scan? Enter: (N new scan, E for existing scan): ")
+
+	if choice.lower() == 'n':
+		with open("missing_image_coordinates.txt", 'a+') as coords:
+			coords.truncate(0)
+
+# ============================================================
+# MAIN method: This contains the driver code for the program
+# ============================================================
+def main():
+	file_name = "Dice/Dice_hole.obj"
+	sphere_obj_name = "sphere1.obj"
+
+
+	check_new_scan()			# Check if this is a new scan, if so we will clear the coordinates file
+
+	v_dict, f_dict, vn_dict, vt_dict = read_obj_file(filename=file_name)
+
+	print("Finished gathering OBJ file data...")
+
+	print("Finding min and max coordinates")
+	max, min, max_point, min_point = get_max_coordinate(v_dict)  # get max and min values of vertices
+
+	print(f'The min radius is {min}')
+	print(f'The max radius is {max}')
+
+	midpoint = find_line_midpoint(max_point, min_point)  # Find midpoint of max and min points
+
+	print("creating bounding sphere...")
+	ray_origins, ray_directions, num_vertices = create_sphere(file_name=sphere_obj_name, vertical_lines=20, radius=max,
+															  ray_center=midpoint,
+															  center_point=midpoint)  # Create a sphere to enclose the 3D object
+
+	print("Finished bounding sphere...")
+	# convert to NumPy arrays for trimesh library to use
+	ray_origins = np.asarray(ray_origins)
+	ray_directions = np.asarray(ray_directions)
+
+	# start 3D mesh analysis
+	mesh = trimesh.load(file_obj=file_name)
+
+	print("Starting ray casting process...")
+
+	locations, index_ray, index_tri = mesh.ray.intersects_location(  # locations = [x, y, z] of ray hit on mesh
+		ray_origins=ray_origins,  # index_ray = array or ray indices for hit locations
+		ray_directions=ray_directions, multiple_hits=False)
+
+	print("Finished ray casting process...")
+
+	# =============================================================================
+	# find face normals and compare to ray normals
+	# Check if locations/index_tri arrays are zero before looking at face normals
+	# ==============================================================================
+	print("Finding missing image coordinates...")
+	missing_image_coords, missing_image_ray_origins, missing_image_ray_directions, hit_locations = find_missing_image_coordiantes(
+		index_ray=index_ray,
+		ray_origins=ray_origins,
+		ray_directions=ray_directions,
+		face_indices=index_tri,
+		face_dict=f_dict,
+		vertex_dict=v_dict,
+		locations=locations)
+
+	# stack rays into line segments for visualization as Path3D
+
+
+	print("The length of missing image coordinates is ", len(missing_image_coords))
+
+	# Use this to plot all rays that were cast and the associated hits
+	ray_visualize_all = trimesh.load_path(np.hstack((
+		ray_origins,
+		ray_origins + ray_directions*0.3)).reshape(-1, 2, 3))
+
+	# unmerge so viewer doesn't smooth
+	mesh.unmerge_vertices()
+	# make mesh transparent- ish
+	# mesh.visual.face_colors = [255, 255, 255, 255]
+	# mesh.visual.face_colors[index_tri] = [255, 0, 0, 255]
+	mesh.visual.face_colors = [100, 100, 100, 100]
+
+	# create a visualization scene with rays, hits, and mesh
+	# Scene for all rays
+	scene_all = trimesh.Scene([
+		mesh,
+		ray_visualize_all,
+		trimesh.points.PointCloud(locations)])
+
+	# Scene for only missing image locations and associated rays
+	if len(hit_locations) > 0 and len(missing_image_ray_origins) > 0:
+		# Use this to plot only missing image location rays
+
+		ray_visualize_missing_images = trimesh.load_path(np.hstack((
+			missing_image_ray_origins,
+			missing_image_ray_origins + missing_image_ray_directions)).reshape(-1, 2, 3))
+
+		scene_missing_images = trimesh.Scene([
+			mesh,
+			ray_visualize_missing_images,
+			trimesh.points.PointCloud(hit_locations)])
+
+		scene_missing_images.show()
+
+	else:
+		#display the scene
+		scene_all.show()
 
 
 # ===================================================
@@ -227,71 +390,7 @@ def find_missing_image_coordiantes(index_ray, ray_origins, ray_directions, face_
 if __name__ == "__main__":
 
 	print("Starting Program...")
+	main()
 
-	file_name = "Dice/Dice.obj"
-
-	v_dict, f_dict, vn_dict, vt_dict = read_obj_file(filename=file_name)
-
-	print("Finished gathering OBJ file data...")
-
-	print ("Finding min and max coordinates")
-	max, min, max_point, min_point = get_max_coordinate(v_dict)		# get max and min values of vertices
-
-	print(f'The min radius is {min}')
-	print(f'The max radius is {max}')
-
-	midpoint = find_line_midpoint(max_point, min_point)		# Find midpoint of max and min points
-
-	ray_origins, ray_directions, num_vertices = create_sphere(file_name="new_sphere1.obj", vertical_lines=20, radius=max,
-															  ray_center=midpoint, center_point=midpoint)	# Create a sphere to enclose the 3D object
-
-
-	# convert to NumPy arrays for trimesh library to use
-	ray_origins = np.asarray(ray_origins)
-	ray_directions = np.asarray(ray_directions)
-	#test_origins = np.array([ray_origins[0], ray_origins[1]])
-	#test_directions = np.array([ray_directions[0], ray_directions[1]])
-
-	# start 3D mesh analysis
-	mesh = trimesh.load(file_obj=file_name)
-
-	print("Starting ray casting process...")
-
-	locations, index_ray, index_tri = mesh.ray.intersects_location(			# locations = [x, y, z] of ray hit on mesh
-		ray_origins=ray_origins,											# index_ray = array or ray indices for hit locations
-		ray_directions=ray_directions, multiple_hits=False)
-
-	print("Finished ray casting process...")
-
-	# stack rays into line segments for visualization as Path3D
-	ray_visualize = trimesh.load_path(np.hstack((
-		ray_origins,
-		ray_origins + ray_directions)).reshape(-1, 2, 3))
-
-	# =============================================================================
-	# Add functionality to find face normals and compare to ray normals
-	# Check if locations/index_tri arrays are zero before looking at face normals
-	# ==============================================================================
-	print("Finding missing image coordinates...")
-	missing_image_coords = find_missing_image_coordiantes(index_ray=index_ray,ray_origins=ray_origins, ray_directions=ray_directions, face_indices=index_tri, face_dict=f_dict, vertex_dict=v_dict)
-
-	print("The length of missing image coordinates is ", len(missing_image_coords))
-	
-	# unmerge so viewer doesn't smooth
-	mesh.unmerge_vertices()
-	# make mesh transparent- ish
-	#mesh.visual.face_colors = [255, 255, 255, 255]
-	#mesh.visual.face_colors[index_tri] = [255, 0, 0, 255]
-	mesh.visual.face_colors = [100, 100, 100, 100]
-
-	# create a visualization scene with rays, hits, and mesh
-	scene = trimesh.Scene([
-		mesh,
-		ray_visualize,
-		trimesh.points.PointCloud(locations)])
-
-	# display the scene
-
-	scene.show()
 
 
