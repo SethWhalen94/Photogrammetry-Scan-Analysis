@@ -66,9 +66,7 @@ def printStandardSphere(pt, radius, nLatitude, nLongitude, fout, final_point):
 
 		y   = radius * math.cos(p * pitchInc)
 
-		#print("OUT = %g\n", out)    # bottom vertex
-		#print("nPitch = %d\n", nPitch)    # bottom vertex
-		#for(s=0 s<nLatitude s++)
+
 		for s in range(0, nLatitude):
 			x = out * math.cos(s * rotInc)
 			z = out * math.sin(s * rotInc)
@@ -137,7 +135,7 @@ def create_sphere(file_name, vertical_lines, radius, ray_center = Point(0, 0, 0)
 
 #------------------------
 #-- Entry point. This main() function demonstrates how you can
-#-- use "printStandardSphere()", but you probably won't
+#-- use "createphere()", but you probably won't
 #-- want/need to copy it in your own code.
 
 if __name__ == "__main__":

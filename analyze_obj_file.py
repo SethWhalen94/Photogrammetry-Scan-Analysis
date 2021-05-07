@@ -287,8 +287,8 @@ def check_new_scan():
 # MAIN method: This contains the driver code for the program
 # ============================================================
 def main():
-	file_name = "Dice/Dice_hole.obj"
-	sphere_obj_name = "sphere1.obj"
+	file_name = "Dice/Dice_hole.obj"			# Name of the 3D scanned OBJ file
+	sphere_obj_name = "sphere1.obj"				# Name of sphere OBJ file that will be created
 
 
 	check_new_scan()			# Check if this is a new scan, if so we will clear the coordinates file
